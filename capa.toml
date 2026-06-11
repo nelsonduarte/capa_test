@@ -1,0 +1,9 @@
+# capa_test package manifest. The library is pure Capa with zero
+# dependencies; this file exists so `capa install` consumers and
+# tooling can read the package identity, and so `capa test`
+# treats this directory as the project root.
+
+[package]
+name = "capa_test"
+version = "0.1.0"
+capa = ">=1.0.0"
