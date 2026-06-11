@@ -1,0 +1,14 @@
+# A deliberately failing test project: a live demonstration of
+# the `capa test` failure contract (FAILED line, panic message
+# on stderr, exit code 1). It has its own manifest so `capa
+# test` run inside this directory treats it, not the library
+# root above, as the project. The library comes in as a path
+# dev-dependency, the same way a sibling consumer would use it.
+
+[package]
+name = "failing_suite"
+version = "0.1.0"
+capa = ">=1.0.0"
+
+[dev-dependencies]
+capa_test = { path = "../.." }

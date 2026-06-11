@@ -1,0 +1,18 @@
+// This test FAILS on purpose. It shows the full failure shape
+// of a capa_test suite under `capa test`:
+//
+//   - each failing assertion prints its FAIL line on stdout,
+//   - finish() prints the summary line,
+//   - then panics, so stderr gets "panic: 2 assertion(s)
+//     failed" and the process exits 1,
+//   - which `capa test` reports as FAILED and propagates as
+//     its own exit code 1.
+
+import capa_test.testing
+
+fun main(stdio: Stdio)
+    let t = tester()
+    t.check(stdio, "this_one_passes", true)
+    t.eq_int(stdio, "answer_is_42", 41, 42)
+    t.eq_str(stdio, "greeting_shape", "hello wasm", "hello capa")
+    t.finish(stdio)
