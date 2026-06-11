@@ -1,0 +1,132 @@
+// capa_test.testing
+//
+// A test reporter for `capa test` suites. A Tester accumulates
+// pass/fail counts; every assertion prints one deterministic
+// line ("ok <name>" or "FAIL <name>: ...") through the Stdio the
+// caller hands it, and finish() prints one stable summary line,
+// then panics when anything failed so the test process exits
+// non-zero, exactly what the `capa test` result contract needs.
+//
+// Capability surface: Stdio, passed explicitly to each printing
+// helper. The library holds no capability of its own (a Capa
+// struct cannot store one), so a Tester is inert data.
+//
+// All output is deterministic (no timing, no ordering of its
+// own; lines appear in call order), so suites built on this
+// library pass `capa test --both` whenever the code under test
+// is itself deterministic.
+
+/// The accumulating test reporter. Reference semantics: pass it
+/// to helper functions freely, the counts are shared.
+pub type Tester {
+    passed: Int,
+    failed: Int
+}
+
+/// Create a fresh reporter with zeroed counts.
+pub fun tester() -> Tester
+    return Tester { passed: 0, failed: 0 }
+
+impl Tester
+    /// Assert that a condition holds.
+    pub fun check(self, stdio: Stdio, name: String, cond: Bool)
+        if cond
+            self.pass(stdio, name)
+        else
+            self.flunk(stdio, "FAIL ${name}")
+
+    /// Assert String equality, reporting expected vs actual.
+    pub fun eq_str(self, stdio: Stdio, name: String, got: String, want: String)
+        if str_same(got, want)
+            self.pass(stdio, name)
+        else
+            self.flunk(stdio, "FAIL ${name}: expected '${want}', got '${got}'")
+
+    /// Assert Int equality, reporting expected vs actual.
+    pub fun eq_int(self, stdio: Stdio, name: String, got: Int, want: Int)
+        if got == want
+            self.pass(stdio, name)
+        else
+            self.flunk(stdio, "FAIL ${name}: expected ${want}, got ${got}")
+
+    /// Assert Bool equality, reporting expected vs actual.
+    pub fun eq_bool(self, stdio: Stdio, name: String, got: Bool, want: Bool)
+        if got == want
+            self.pass(stdio, name)
+        else
+            self.flunk(stdio, "FAIL ${name}: expected ${want}, got ${got}")
+
+    /// Assert that two String lists are equal, element by
+    /// element, reporting both sides joined for readability.
+    pub fun eq_str_list(self, stdio: Stdio, name: String, got: List<String>, want: List<String>)
+        if str_list_same(got, want)
+            self.pass(stdio, name)
+        else
+            let g = render_list(got)
+            let w = render_list(want)
+            self.flunk(stdio, "FAIL ${name}: expected ${w}, got ${g}")
+
+    /// Assert that two Strings differ.
+    pub fun ne_str(self, stdio: Stdio, name: String, got: String, banned: String)
+        if not str_same(got, banned)
+            self.pass(stdio, name)
+        else
+            self.flunk(stdio, "FAIL ${name}: both sides are '${got}'")
+
+    /// Assert that `text` contains the substring `sub`.
+    pub fun contains(self, stdio: Stdio, name: String, text: String, sub: String)
+        if text.contains(sub)
+            self.pass(stdio, name)
+        else
+            self.flunk(stdio, "FAIL ${name}: '${sub}' not found in '${text}'")
+
+    /// Assert that `text` starts with `prefix`.
+    pub fun starts_with(self, stdio: Stdio, name: String, text: String, prefix: String)
+        if text.starts_with(prefix)
+            self.pass(stdio, name)
+        else
+            self.flunk(stdio, "FAIL ${name}: '${text}' does not start with '${prefix}'")
+
+    /// Fail unconditionally with a message. For branches the
+    /// test should never reach.
+    pub fun fail(self, stdio: Stdio, name: String, message: String)
+        self.flunk(stdio, "FAIL ${name}: ${message}")
+
+    /// Close the suite: print the one-line summary and, when
+    /// anything failed, panic so the process exits non-zero
+    /// (the `capa test` failure signal).
+    pub fun finish(self, stdio: Stdio)
+        stdio.println("capa_test: ${self.passed} passed, ${self.failed} failed")
+        if self.failed > 0
+            panic("${self.failed} assertion(s) failed")
+
+    fun pass(self, stdio: Stdio, name: String)
+        self.passed = self.passed + 1
+        stdio.println("ok ${name}")
+
+    fun flunk(self, stdio: Stdio, line: String)
+        self.failed = self.failed + 1
+        stdio.println(line)
+
+// String and String-list equality live at module level: the
+// Wasm backend currently fails to emit its $str_eq /
+// $eq_List_String helpers for `==` written inside impl-method
+// bodies (works fine in top-level functions).
+fun str_same(a: String, b: String) -> Bool
+    return a == b
+
+fun str_list_same(a: List<String>, b: List<String>) -> Bool
+    return a == b
+
+// Render a String list as "[a, b, c]" for failure messages
+// (the Wasm backend does not interpolate List values directly).
+fun render_list(xs: List<String>) -> String
+    var body = ""
+    var first = true
+    for x in xs
+        if first
+            body = x
+            first = false
+        else
+            body = "${body}, ${x}"
+    return "[${body}]"
