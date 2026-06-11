@@ -1,0 +1,28 @@
+// Self-hosted: the String-flavoured assertions (inequality,
+// containment, prefix, list equality), pass and fail paths.
+
+import capa_test.testing
+
+fun main(stdio: Stdio)
+    let t = tester()
+
+    t.ne_str(stdio, "ne_str_pass", "alpha", "beta")
+    t.contains(stdio, "contains_pass", "supply chain", "chain")
+    t.starts_with(stdio, "starts_with_pass", "capability", "capa")
+    t.eq_str_list(stdio, "eq_str_list_pass", ["a", "b"], ["a", "b"])
+    t.eq_str_list(stdio, "eq_str_list_empty", [], [])
+
+    // failure paths on a scratch reporter
+    let s = tester()
+    s.ne_str(stdio, "scratch.ne_str_equal", "same", "same")
+    s.contains(stdio, "scratch.contains_missing", "haystack", "needle")
+    s.starts_with(stdio, "scratch.wrong_prefix", "wasm", "capa")
+    s.eq_str_list(stdio, "scratch.list_mismatch", ["a"], ["a", "b"])
+    t.eq_int(stdio, "scratch_counts_failures", s.failed, 4)
+
+    // boundary shapes
+    t.contains(stdio, "contains_empty_sub", "anything", "")
+    t.starts_with(stdio, "starts_with_empty_prefix", "anything", "")
+    t.contains(stdio, "contains_self", "whole", "whole")
+
+    t.finish(stdio)

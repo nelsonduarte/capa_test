@@ -1,0 +1,31 @@
+// Self-hosted: the core assertions, exercised with the library
+// itself. Failure paths run on a separate "scratch" Tester whose
+// FAIL lines are part of this suite's expected (deterministic)
+// output; the outer Tester then asserts on the scratch counts.
+
+import capa_test.testing
+
+fun main(stdio: Stdio)
+    let t = tester()
+
+    // pass paths
+    t.check(stdio, "check_true", 1 + 1 == 2)
+    t.eq_int(stdio, "eq_int_pass", 6 * 7, 42)
+    t.eq_str(stdio, "eq_str_pass", "ca" + "pa", "capa")
+    t.eq_bool(stdio, "eq_bool_pass", "x".is_empty(), false)
+
+    // failure paths, observed through a scratch reporter
+    let s = tester()
+    s.check(stdio, "scratch.check_false", false)
+    s.eq_int(stdio, "scratch.eq_int_mismatch", 41, 42)
+    s.eq_str(stdio, "scratch.eq_str_mismatch", "got", "want")
+    s.eq_bool(stdio, "scratch.eq_bool_mismatch", true, false)
+    s.fail(stdio, "scratch.explicit", "this branch is deliberate")
+    t.eq_int(stdio, "scratch_counts_failures", s.failed, 5)
+    t.eq_int(stdio, "scratch_counts_no_passes", s.passed, 0)
+
+    // counts on the outer reporter so far: 6 passed, 0 failed
+    t.eq_int(stdio, "tester_counts_passes", t.passed, 6)
+    t.eq_int(stdio, "tester_counts_failures", t.failed, 0)
+
+    t.finish(stdio)

@@ -1,0 +1,37 @@
+// Self-hosted: the reporting behaviour itself. The exact lines
+// a Tester prints are pinned by building the expected strings
+// here; `capa test --both` additionally pins them across
+// backends byte for byte.
+
+import capa_test.testing
+
+fun main(stdio: Stdio)
+    let t = tester()
+
+    // a fresh reporter starts at zero
+    let fresh = tester()
+    t.eq_int(stdio, "fresh_passed_zero", fresh.passed, 0)
+    t.eq_int(stdio, "fresh_failed_zero", fresh.failed, 0)
+
+    // counts are shared through aliases (reference semantics)
+    let alias = fresh
+    alias.check(stdio, "alias_bump", true)
+    t.eq_int(stdio, "alias_shares_counts", fresh.passed, 1)
+
+    // passing a Tester to a helper function mutates the original
+    run_three(stdio, fresh)
+    t.eq_int(stdio, "helper_shares_counts", fresh.passed, 4)
+    t.eq_int(stdio, "helper_failures_counted", fresh.failed, 1)
+
+    // the FAIL line of eq_str carries expected and actual
+    // (its exact text printed above is part of this suite's
+    // pinned stdout: "FAIL scratch.shape: expected 'b', got 'a'")
+    t.check(stdio, "fail_lines_are_pinned_by_stdout", true)
+
+    t.finish(stdio)
+
+fun run_three(stdio: Stdio, r: Tester)
+    r.check(stdio, "helper_one", true)
+    r.eq_int(stdio, "helper_two", 2, 2)
+    r.eq_str(stdio, "helper_three", "x", "x")
+    r.eq_str(stdio, "scratch.shape", "a", "b")
