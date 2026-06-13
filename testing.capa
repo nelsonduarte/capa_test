@@ -37,7 +37,7 @@ impl Tester
 
     /// Assert String equality, reporting expected vs actual.
     pub fun eq_str(self, stdio: Stdio, name: String, got: String, want: String)
-        if str_same(got, want)
+        if got == want
             self.pass(stdio, name)
         else
             self.flunk(stdio, "FAIL ${name}: expected '${want}', got '${got}'")
@@ -59,7 +59,7 @@ impl Tester
     /// Assert that two String lists are equal, element by
     /// element, reporting both sides joined for readability.
     pub fun eq_str_list(self, stdio: Stdio, name: String, got: List<String>, want: List<String>)
-        if str_list_same(got, want)
+        if got == want
             self.pass(stdio, name)
         else
             let g = render_list(got)
@@ -68,7 +68,7 @@ impl Tester
 
     /// Assert that two Strings differ.
     pub fun ne_str(self, stdio: Stdio, name: String, got: String, banned: String)
-        if not str_same(got, banned)
+        if got != banned
             self.pass(stdio, name)
         else
             self.flunk(stdio, "FAIL ${name}: both sides are '${got}'")
@@ -107,16 +107,6 @@ impl Tester
     fun flunk(self, stdio: Stdio, line: String)
         self.failed = self.failed + 1
         stdio.println(line)
-
-// String and String-list equality live at module level: the
-// Wasm backend currently fails to emit its $str_eq /
-// $eq_List_String helpers for `==` written inside impl-method
-// bodies (works fine in top-level functions).
-fun str_same(a: String, b: String) -> Bool
-    return a == b
-
-fun str_list_same(a: List<String>, b: List<String>) -> Bool
-    return a == b
 
 // Render a String list as "[a, b, c]" for failure messages
 // (the Wasm backend does not interpolate List values directly).
