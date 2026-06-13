@@ -159,12 +159,20 @@ deterministic.
 tiny project (own `capa.toml`, this library as a path
 dev-dependency) whose single test fails on purpose. It is kept
 outside `tests/` precisely so the library's own suite stays
-green. From that directory, `capa test` prints:
+green. From that directory, `capa test --both` prints:
 
 ```
-capa test: 1 file(s) under .../demo/failing_suite/tests [backend: python]
-test_deliberate_failure.capa ... FAIL (0.2s)
-  exit code 1
+capa test: 1 file(s) under .../demo/failing_suite/tests [backend: python+wasm]
+test_deliberate_failure.capa ... FAIL (0.6s)
+  exit code 1 [python]
+  --- captured stdout ---
+  ok this_one_passes
+  FAIL answer_is_42: expected 42, got 41
+  FAIL greeting_shape: expected 'hello capa', got 'hello wasm'
+  capa_test: 1 passed, 2 failed
+  --- captured stderr ---
+  panic: 2 assertion(s) failed
+  exit code 1 [wasm]
   --- captured stdout ---
   ok this_one_passes
   FAIL answer_is_42: expected 42, got 41
@@ -175,8 +183,10 @@ test_deliberate_failure.capa ... FAIL (0.2s)
 1 test(s): 0 passed, 1 failed
 ```
 
-and exits 1. With `--both` the captured stdout is byte-identical
-on the two backends, failure messages included.
+and exits 1. The two backends agree byte for byte: the same
+captured stdout, and the same single-line `panic: 2
+assertion(s) failed` on stderr with no host traceback on
+either side.
 
 ## Tests
 
@@ -218,7 +228,7 @@ Tester.contains:      declared=['Stdio'] reachable=['Stdio']
 Tester.starts_with:   declared=['Stdio'] reachable=['Stdio']
 Tester.fail:          declared=['Stdio'] reachable=['Stdio']
 Tester.finish:        declared=['Stdio'] reachable=['Stdio']
-str_same / str_list_same / render_list: declared=[] reachable=[]
+render_list:          declared=[]        reachable=[]
 ```
 
 No function crosses `unsafe`, no function reaches any
