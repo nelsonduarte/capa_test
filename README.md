@@ -23,7 +23,7 @@ package never fetch them:
 
 ```bash
 capa add --dev capa_test \
-    --git https://github.com/nelsonduarte/capa_test --tag v0.1.0 \
+    --git https://github.com/nelsonduarte/capa_test --tag v0.1.1 \
     --verify-key 6C1D222D491FB88031E041A536CFB426101AA24B
 capa install
 ```
@@ -32,7 +32,7 @@ That writes, under `[dev-dependencies]` in your `capa.toml`:
 
 ```toml
 [dev-dependencies]
-capa_test = { git = "https://github.com/nelsonduarte/capa_test", tag = "v0.1.0", verify_key = "6C1D222D491FB88031E041A536CFB426101AA24B" }
+capa_test = { git = "https://github.com/nelsonduarte/capa_test", tag = "v0.1.1", verify_key = "6C1D222D491FB88031E041A536CFB426101AA24B" }
 ```
 
 Write a test, a plain Capa program under `tests/`, named
