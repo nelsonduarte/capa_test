@@ -1,0 +1,120 @@
+# THE GUARD REVISION THIS REPOSITORY AUDITED, BY CONTENT.
+#
+# .github/workflows/release.yml pins the shared release guards by commit
+# SHA. A SHA is content-addressed and therefore immutable, so the pin
+# cannot be edited under us. What a SHA does NOT do is tell a reader what
+# is in it, and nothing states which BYTES were looked at before pinning
+# them. That is what this file is for.
+#
+# Every file the guards execute is recorded below by SHA-256, taken at
+# the pinned revision. tests/test_guard_pins.sh re-fetches each one and
+# refuses any difference, so:
+#
+#   * bumping the pin without re-auditing goes RED, because the digests
+#     below describe a revision the workflow no longer names;
+#   * a pin that resolves to bytes other than the audited ones goes RED,
+#     which is the falsifiable form of "we ran what we pinned";
+#   * the check runs offline of any claim the guards make about
+#     themselves, before a tag is ever pushed.
+#
+# WHAT REMAINS TRUSTED, stated plainly rather than papered over: that
+# GitHub runs the workflow file living at the pinned SHA. A workflow
+# cannot establish its own identity from inside itself, because a
+# substituted file could simply print the expected answer. That is the
+# platform's guarantee and the reason `uses:@<sha>` is written by SHA.
+# Everything downstream of it is checked here by content.
+#
+# THE DIGESTS BELOW WERE WRITTEN BY `bash fleet/guard_pins.sh`, which
+# fetched each file at 2db00705e05b1774cf41eb58006e6533cfca4d55 and hashed it. Do not
+# hand-edit them, and do not copy this file from another repository: a
+# copied record passes every check while having audited nothing, because
+# the digests are genuinely the pinned revision's bytes. What a copy
+# cannot carry is the reading.
+#
+# TO RE-AUDIT AFTER A PIN BUMP: read the diff, then re-run
+# `bash fleet/guard_pins.sh <this repository>` and rewrite the note below.
+#
+#   https://github.com/nelsonduarte/capa-language/compare/<old>...2db00705e05b1774cf41eb58006e6533cfca4d55
+
+# ---------------------------------------------------------------------
+# AUDIT NOTE.
+#
+# THIS IS A FIRST PIN, NOT A BUMP. This repository has never called the
+# shared guards, so there is no previous revision and no diff to read.
+# 2db0070 is "fix(ci): job.workflow_sha, and stop the guards claiming a
+# proof they cannot have (#91)", and it is the same revision capa_url
+# and capa_uuid pin. Confirmed to be an ancestor of the compiler's main
+# at 5e087e1 (`git merge-base --is-ancestor`).
+#
+# ALL FIVE FILES BELOW WERE READ IN FULL at this revision, 1171 lines,
+# and their digests were also recomputed locally from git objects and
+# matched what fleet/guard_pins.sh fetched. What the reading found, in
+# the order it matters for THIS package:
+#
+#   tools/capa_floor.sh (80 lines). Reads exactly one `capa` key from
+#   the [package] table, accepts only "X.Y.Z" or ">=X.Y.Z", and fails
+#   closed on anything else. This is what chooses the compiler the clean
+#   room downloads, so it is what turns capa.toml's `>=1.18.1` into a
+#   real download. RUN AGAINST THIS REPOSITORY'S NEW MANIFEST, at this
+#   revision: prints `1.18.1`, exit 0. Two things about it are STALE
+#   here and neither is load-bearing. Its header says "nothing in the
+#   compiler ENFORCES this field today"; 1.19.0 does, and the script
+#   only reads and prints, so its behaviour is unchanged. Its version
+#   regex `[0-9][0-9.]*[0-9]` also accepts 1.17 and 1.2.3.4, tightened
+#   later in the compiler's c5f6764; `>=1.18.1` parses identically under
+#   both, so the loose form cannot mis-select a compiler for us.
+#
+#   tools/clean_room_build.sh (223 lines). Extracts the tarball into an
+#   absolute, EMPTY room, requires exactly one top-level entry, unsets
+#   CAPA_PATH, cd's in and runs each --run with the status read
+#   explicitly. This is precisely the isolation this package's floor
+#   depends on: with no siblings and no CAPA_PATH, `import
+#   capa_test.testing` in tests/ can only resolve through PR #85's
+#   project-root-by-manifest-name fallback, which is why the clean room
+#   is where a pre-1.18.0 compiler fails and a development checkout is
+#   not. Zero --run commands is an error, which is what stops an empty
+#   flow reporting success.
+#
+#   tools/check_tag_version.sh (112 lines). Table-scoped awk read of
+#   `version` from [package], refusing zero or more than one match, so a
+#   dependency's own version line cannot be compared against the tag.
+#   RUN AGAINST THIS REPOSITORY'S NEW MANIFEST, at this revision: `v0.2.0`
+#   passes and `v0.1.1` is refused with the version it read. That matters
+#   here because the new capa.toml carries roughly 130 lines of comment
+#   between [package] and [capabilities], and this confirms none of it is
+#   parsed as a second version or a second floor.
+#
+#   tools/verify_guard_digests.sh (148 lines). Compares the fetched
+#   guard tree against the digests release.yml passes. Fails closed on a
+#   malformed line, an absolute or `..`-bearing path, a missing file, a
+#   mismatch, and on an EMPTY list, which is the case that would
+#   otherwise render "verified nothing" as "verified". Its own header is
+#   explicit that it cannot establish the workflow's identity from
+#   inside the workflow.
+#
+#   .github/workflows/release-guards.yml (608 lines). Two jobs,
+#   `permissions: {}` at the workflow level and `contents: read` on
+#   each, no id-token anywhere. Every input reaches the shell through
+#   `env:` rather than `${{ }}` interpolation. `job.workflow_sha` and
+#   `job.workflow_repository` are checked for emptiness BEFORE the
+#   checkout, because an empty ref makes actions/checkout fall back to
+#   the default branch; that empty-string failure is what this very
+#   revision exists to fix. The compiler is downloaded as the released
+#   linux binary for the floor version and `gh attestation verify`d
+#   before use. One consequence specific to capa_test: the GH_TOKEN
+#   passed to guard 2 exists so `capa install` can verify a
+#   dependency's SLSA provenance, and this package has no dependencies,
+#   so that branch does nothing here.
+#
+# WHAT I DID NOT DO: dispatch guard-selftest.yml. It cannot go green
+# against either existing tag, for the reasons written out in that
+# file's header, and no v0.2.0 tag exists yet.
+# ---------------------------------------------------------------------
+
+revision 2db00705e05b1774cf41eb58006e6533cfca4d55
+
+4bee86b2951bd33d3cb8bab6721b2abb30f0533a010dfe93d36ebb275497f1d4  .github/workflows/release-guards.yml
+212b06bb4be0100267fcc98bb2be7f99f4860007f51ae222ed359cddb638eaa2  tools/capa_floor.sh
+420290eb75a96f49aed937be40a3d63d1e2db3aba2de4a4a87c9282eb2a13b38  tools/check_tag_version.sh
+537a7e902540efe4fe5c8f4ae72788b2f3595696b8a7a4bb0a54e19fe523ffcd  tools/clean_room_build.sh
+4fa535d216ecbd647444c80e4cab978ff8e636e1d5edb437842ee561b9f17e0f  tools/verify_guard_digests.sh

@@ -1,0 +1,5 @@
+# Keep every committed file LF-terminated on every platform. The
+# shared checks match marker lines by whole-line equality and digest
+# the result, so a checkout that flips line endings per platform
+# produces digests that depend on who committed last.
+* text eol=lf
