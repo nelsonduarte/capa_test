@@ -1,0 +1,176 @@
+name: Guard self-test
+
+# REHEARSE THE RELEASE GUARDS WITHOUT SPENDING A VERSION NUMBER.
+#
+# WHY THIS EXISTS. capa_authgate v0.2.3 was tagged and the guards failed
+# in five seconds, before any checkout, on a one-token defect in the
+# shared workflow: it read `github.job_workflow_sha`, which is not a
+# property of the `github` context at all (it is an OIDC token claim),
+# so the expression evaluated to the empty string and the fail-closed
+# check fired exactly as designed. The guard was right. The expression
+# was wrong. The cost of learning that was a tag, because a tag push was
+# the only thing that had ever exercised the plumbing.
+#
+# One data point per tag is not a rate at which a release pipeline can
+# be debugged, and every repository in the fleet adopts this same
+# apparatus. So the plumbing is rehearsable on demand, against a tag
+# that already exists, publishing nothing.
+#
+# WHAT IT EXERCISES, all the way through:
+#
+#   * GitHub resolving the reusable workflow by commit SHA;
+#   * the guards proving which revision of themselves is running,
+#     against the digests recorded in .github/guard-pins.sha256;
+#   * guard 1 against the real manifest;
+#   * the released-compiler download and its attestation check;
+#   * guard 2's full clean-room consumer flow;
+#   * the `tarball-sha256` handshake, asserted below exactly as
+#     release.yml asserts it, against a tarball rebuilt here.
+#
+# WHAT IT CANNOT EXERCISE, and what therefore still costs a tag: the
+# GPG tag-signature step, the attestation, and the publish. Those three
+# are the release job's, and a release job that could be rehearsed
+# would be a release job that can publish from a button.
+#
+# ONE HONEST DIVERGENCE FROM PRODUCTION. This passes `tag:` explicitly,
+# because a workflow_dispatch runs on a branch and the guards correctly
+# refuse to compare a branch name to a version. A tag push instead
+# leaves the input empty and the guards fall back to GITHUB_REF_NAME.
+# That fallback is not rehearsed here.
+#
+# READ THE RESULT CAREFULLY IF YOU DISPATCH AGAINST v0.1.0 OR v0.1.1,
+# which are the only tags this repository has, BECAUSE NEITHER CAN GO
+# GREEN AND THE REASONS ARE WORTH KNOWING BEFORE READING A LOG.
+#
+# Guard 1 compares the tag to the manifest AT THAT TAG, so it reads
+# version = "0.1.1" for v0.1.1 and passes; it says nothing about the
+# 0.2.0 in the working tree.
+#
+# Guard 2 builds that tag's bytes, whose capa.toml declares
+# `capa = ">=1.1.0"`, so the clean room downloads capa 1.1.0 and runs
+# the consumer flow below against it. Measured against the 1.1.0 source
+# tree rather than guessed:
+#
+#   capa --check testing.capa            ok (4 items, 168 expressions
+#                                        typed, 107 bindings)
+#   capa --check-capabilities ...        error: unrecognized arguments
+#
+# The ceiling check is the FIRST line to fail, and not for the reason
+# anyone would predict from the sibling repositories: the flag did not
+# exist before 1.16.0. Had it existed, it would have found nothing to
+# do, because v0.1.1's capa.toml declares no `[capabilities]` table and
+# the command then prints "nothing to verify" and exits 0. The ceiling
+# was added in this change, so the first run that actually tests it is a
+# dispatch against v0.2.0.
+#
+# `capa test` would fail next, and IT is the line that carries this
+# package's floor: 1.1.0 cannot resolve the `import capa_test.testing`
+# in tests/, because the extracted tarball root is `capa_test-v0.1.1`
+# and PR #85's resolver fix ships in 1.18.0. Note that `capa --check`
+# passing above is not a reprieve: testing.capa imports nothing, so it
+# compiles on any compiler, which is exactly why this repository's floor
+# rests on `capa test` alone.
+#
+# So a dispatch against an existing tag rehearses the plumbing up to and
+# including the clean room, and proves the guards catch two real
+# defects. A green run needs a v0.2.0 tag.
+#
+# THE SIXTEEN REPOSITORIES THAT DEV-DEPEND ON THIS ONE RESOLVE v0.1.0 OR
+# v0.1.1, and dispatching this changes nothing for any of them: it reads
+# a tag, builds a tarball in a runner, and publishes nothing.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'An EXISTING tag to rehearse against (for example v0.1.1).'
+        required: true
+        type: string
+
+# Deny by default, grant per job. This workflow publishes nothing and
+# must not be able to: it is the release pipeline minus the release, and
+# the whole point is that anyone may run it without that being a way to
+# ship. In particular there is no `id-token: write` anywhere here.
+permissions: {}
+
+jobs:
+  guards:
+    # THE SAME PIN AS release.yml, and tests/test_release_wiring.sh
+    # fails if the two ever differ. A rehearsal of a revision other than
+    # the one that will actually gate the release is not a rehearsal, it
+    # is a second thing to keep in sync, and it would report success for
+    # the wrong reason.
+    uses: nelsonduarte/capa-language/.github/workflows/release-guards.yml@2db00705e05b1774cf41eb58006e6533cfca4d55
+    permissions:
+      contents: read
+    with:
+      tag: ${{ inputs.tag }}
+      # Byte-for-byte the flow release.yml passes. If these ever drift,
+      # the rehearsal stops predicting the release.
+      consumer-commands: |
+        gpg --import publisher.asc
+        capa install
+        capa --check testing.capa
+        capa --check-capabilities testing.capa
+        capa test
+
+      # The same digests release.yml passes, for the same reason, and
+      # test_release_wiring.sh fails if the two lists differ: a
+      # rehearsal that verifies different bytes from the release is not
+      # rehearsing the release.
+      guard-digests: |
+        4bee86b2951bd33d3cb8bab6721b2abb30f0533a010dfe93d36ebb275497f1d4  .github/workflows/release-guards.yml
+        420290eb75a96f49aed937be40a3d63d1e2db3aba2de4a4a87c9282eb2a13b38  tools/check_tag_version.sh
+        537a7e902540efe4fe5c8f4ae72788b2f3595696b8a7a4bb0a54e19fe523ffcd  tools/clean_room_build.sh
+        212b06bb4be0100267fcc98bb2be7f99f4860007f51ae222ed359cddb638eaa2  tools/capa_floor.sh
+        4fa535d216ecbd647444c80e4cab978ff8e636e1d5edb437842ee561b9f17e0f  tools/verify_guard_digests.sh
+
+  # The digest handshake, rehearsed. release.yml refuses to publish
+  # unless the tarball it built matches the one the guards verified;
+  # that comparison has never run in THIS repository, because nothing
+  # has ever reached it. This performs the same comparison against a
+  # tarball rebuilt from the same tag, so the expression, the output
+  # plumbing and the fail-on-empty rule are all exercised without an
+  # upload existing.
+  digest-handshake:
+    needs: guards
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the tag
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10  # v6.0.3
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+
+      - name: Rebuild the tarball the way the release does
+        id: tarball
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          NAME="${GITHUB_REPOSITORY##*/}-${TAG}"
+          git archive --format=tar.gz --prefix="${NAME}/" "${TAG}" > "${NAME}.tar.gz"
+          echo "sha256=$(sha256sum "${NAME}.tar.gz" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Compare it to the digest the guards reported
+        env:
+          GUARD_SHA256: ${{ needs.guards.outputs.tarball-sha256 }}
+          BUILT_SHA256: ${{ steps.tarball.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          # Fail closed on an absent digest as well as a differing one,
+          # for the same reason release.yml does: an empty value means
+          # the clean room did not report, and treating "no answer" as
+          # "same answer" is how a guard passes for the wrong reason.
+          if [ -z "${GUARD_SHA256}" ]; then
+            echo "ERROR: the guards reported no tarball digest" >&2
+            exit 1
+          fi
+          if [ "${GUARD_SHA256}" != "${BUILT_SHA256}" ]; then
+            echo "ERROR: the guards verified ${GUARD_SHA256}" >&2
+            echo "       this job built  ${BUILT_SHA256}" >&2
+            exit 1
+          fi
+          echo "OK: the digest handshake closes (${BUILT_SHA256})"

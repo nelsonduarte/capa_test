@@ -1,9 +1,164 @@
 # capa_test package manifest. The library is pure Capa with zero
-# dependencies; this file exists so `capa install` consumers and
-# tooling can read the package identity, and so `capa test`
-# treats this directory as the project root.
+# dependencies, runtime or development; this file exists so `capa
+# install` consumers and tooling can read the package identity, and so
+# `capa test` treats this directory as the project root.
+#
+# THERE IS NO [dev-dependencies] TABLE HERE, and every sibling library
+# in the fleet has one naming capa_test. This is that package, so it
+# has nothing to depend on: the suite in tests/ imports
+# `capa_test.testing` out of this very repository. That makes the
+# dependency graph empty in both directions and is why the consumer
+# flow's `gpg --import publisher.asc` and `capa install` lines verify
+# no third party here; see .github/workflows/release.yml for what they
+# still prove and why they are kept.
 
 [package]
 name = "capa_test"
-version = "0.1.1"
-capa = ">=1.1.0"
+version = "0.2.0"
+# THE COMPILER FLOOR IS LOAD-BEARING, and not only as documentation.
+# tools/capa_floor.sh in the release guards reads this key to decide
+# which RELEASED compiler the clean room downloads, so it is the version
+# the published tarball is actually proven to build with. Since 1.19.0
+# the compiler enforces it too, so this line refuses builds on older
+# compilers rather than being a comment about them.
+#
+# It said ">=1.1.0", and that was a false claim. The floor is >=1.18.1,
+# the same number the other fleet libraries carry, but it is NOT
+# established here by the argument they use, and the difference is worth
+# writing down because the convenient move was to copy their reasoning.
+#
+# THEIR ARGUMENT DOES NOT APPLY VERBATIM. capa_url, capa_uuid and
+# capa_base64 rest their floor on `example.capa`, a documented runnable
+# example that self-imports `capa_<name>.<module>` and is compiled by
+# `capa --check` in the clean room. THIS PACKAGE HAS NO example.capa AND
+# ONE TOP-LEVEL MODULE, and `testing.capa` imports nothing at all, so
+# `capa --check testing.capa` succeeds on any compiler ever released.
+# Had the flow stopped there, the honest floor would have been far
+# lower.
+#
+# WHAT ACTUALLY CARRIES IT IS `capa test`, and both reasons are
+# measured rather than inherited:
+#
+#   * THE SELF-IMPORT IS IN tests/, not in an example. All three suites
+#     under tests/ open with `import capa_test.testing`, and PR #85
+#     (released in 1.18.0) is what makes that resolvable in an extracted
+#     tarball, where the project root is named `capa_test-<tag>` rather
+#     than `capa_test`. Measured, by running the real pre-#85 resolver
+#     over a tarball built from this tree with `git archive --prefix
+#     capa_test-v0.2.0/`:
+#
+#       capa test  ->  3 test(s): 0 passed, 3 failed
+#         test_assertions.capa:6:1: error: cannot resolve
+#         'import capa_test.testing': tried .../capa_test-v0.2.0/tests/
+#         capa_test/testing.capa; .../capa_test-v0.2.0/capa_test/
+#         testing.capa; .../capa_test/testing.capa; ...
+#
+#     and the same tarball against the fix: `3 test(s): 3 passed, 0
+#     failed`. So every release below 1.18.0 fails the clean room here,
+#     for the same structural reason as the siblings but through a
+#     different command.
+#   * 1.18.0 THEN FAILS `capa test` FOR A SECOND, UNRELATED REASON.
+#     Under PyInstaller `sys.executable` is the capa binary, which
+#     rejects `-m`, so the released 1.18.0 binary reports every test as
+#     `unrecognized arguments: -m <file>`. The clean room downloads a
+#     released binary, so that defect is exactly the one it hits.
+#   * 1.18.1 is the first release the whole clean-room flow passes.
+#
+# The two reasons are independent and neither is redundant: the first
+# rules out everything below 1.18.0, the second rules out 1.18.0 itself.
+# They both land on the same step, which is the fact peculiar to this
+# repository: REMOVE `capa test` FROM THE CONSUMER FLOW AND THIS FLOOR
+# STOPS BEING PROVEN BY ANYTHING. tests/test_release_wiring.sh requires
+# that line to be present, which is what keeps the two attached.
+#
+# Narrowing the supported toolchain is why this is a MINOR bump and not
+# a patch: a consumer pinned to an older compiler could obey the v0.1.1
+# manifest and cannot obey this one. Nothing in the library's API
+# changed.
+#
+# SIXTEEN REPOSITORIES DEV-DEPEND ON THIS PACKAGE AND NONE OF THEM IS
+# DISTURBED BY THIS, which was checked rather than assumed. Every one
+# names it as `[dev-dependencies.capa_test]` with `tag = "v0.1.0"` or
+# `tag = "v0.1.1"`, and every one records the resolved commit in its
+# capa.lock (511e3cf... for v0.1.0, ecb360b... for v0.1.1) with
+# `dev = true`. `capa install` clones the exact tag and checks it
+# against that commit, so nothing floats and no manifest here can reach
+# them until someone deliberately re-pins. Being a DEV-dependency
+# insulates them a second time: it is resolved only when the depending
+# repository is itself the install root, so it never reaches a consumer
+# of THEIRS at all. The floor set here is a claim each of them inherits
+# at the moment it re-pins, which is why it had to be the true one and
+# not the convenient one.
+capa = ">=1.18.1"
+
+# THE CEILING, and why a library with one module and one capability
+# still needs one.
+#
+# Without a [capabilities] table `capa --check-capabilities` prints
+# "no package declares a ceiling; nothing to verify" and exits 0. That
+# is a green check that inspected nothing, which is the same shape as
+# the defects the release guards exist to catch, so the choice here is
+# between declaring a ceiling and not running the command.
+#
+# It is worth declaring, and that was measured rather than assumed. A
+# `pub fun load_baseline(fs: Fs, path: String) -> Result<String,
+# IoError>` added to testing.capa is a test-reporting library silently
+# acquiring the authority to read the filesystem, and a golden-file
+# helper is the single most plausible thing anyone would ever add to
+# this package. It COMPILES CLEANLY, exit 0:
+#
+#   capa --check testing.capa
+#     testing.capa: ok (5 items, 171 expressions typed, 109 bindings)
+#
+# against `ok (4 items, 168 expressions typed, 107 bindings)` without
+# it, so the compiler saw the new function and had no objection and the
+# release would ship it. With this table it is refused by name, exit 1:
+#
+#   capa --check-capabilities testing.capa
+#     capa: --check-capabilities: FAILED - 1 ceiling violation(s):
+#       - package 'capa_test' declares max=['Stdio'] but its own code
+#         introduces 'Fs'
+#
+# THE PROBE HAD TO CALL A REAL METHOD FOR THAT TO MEAN ANYTHING. An
+# earlier probe in a sibling repository called `fs.read_to_string`,
+# which Capa's `Fs` does not have, so `--check-capabilities` exited 1 on
+# a TYPE error before the ceiling was ever consulted. A ceiling refusal
+# and a type error are both exit 1; only the message tells them apart,
+# and only the message is evidence. This probe calls `fs.read(path)`,
+# which is real, and the two commands above were read in full rather
+# than reduced to exit codes.
+#
+# WHAT THE CEILING ACTUALLY COVERS, and it is NOT the package.
+# `capa --check-capabilities <entry>` covers the IMPORT CLOSURE OF THE
+# ENTRY IT IS GIVEN. A module that is not the entry, and is not imported
+# (directly or transitively) by it, is never opened. The ceiling is
+# exactly as wide as the set of entries the release hands it, and no
+# wider. This package has ONE top-level module and the release checks
+# it, so nothing is uncovered here; that is a fact about the release
+# flow, not a property of declaring a `[capabilities]` table.
+# tests/test_release_wiring.sh is what keeps it true: it reads the
+# top-level `*.capa` files off disk and fails if the flow does not name
+# every one of them.
+#
+# WHY "Stdio" AND NOT THE EMPTY LIST. `max = []` was tried and is
+# refused: every assertion helper takes a `Stdio` and prints through it,
+# which is the library's entire job, so
+#
+#   capa --check-capabilities testing.capa
+#     capa: --check-capabilities: FAILED - 1 ceiling violation(s):
+#       - package 'capa_test' declares max=[] but its own code
+#         introduces 'Stdio'
+#
+# and the release would fail on its only entry point. ["Stdio"] is
+# therefore the tightest list that admits this package at all, and with
+# it the command reads
+#
+#   capa: --check-capabilities: OK - every declared capability ceiling holds.
+#
+# What this bound catches, exactly: testing.capa acquiring any of Fs,
+# Net, Env, Db, Proc, Random, Clock or Serve. It does NOT catch a new
+# printing helper, because Stdio is already in. `capa --manifest
+# testing.capa` remains the tighter statement: it reports the surface
+# per function, where `tester` and `render_list` hold nothing at all.
+[capabilities]
+max = ["Stdio"]
