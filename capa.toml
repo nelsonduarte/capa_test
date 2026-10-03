@@ -159,6 +159,6 @@ capa = ">=1.18.1"
 # Net, Env, Db, Proc, Random, Clock or Serve. It does NOT catch a new
 # printing helper, because Stdio is already in. `capa --manifest
 # testing.capa` remains the tighter statement: it reports the surface
-# per function, where `tester` and `render_list` hold nothing at all.
+# per function, where `tester` and `render_list` declare nothing at all.
 [capabilities]
 max = ["Stdio"]

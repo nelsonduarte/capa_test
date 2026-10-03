@@ -10,8 +10,10 @@ requires.
 
 Capability surface: **Stdio only**, passed explicitly to each
 printing helper. Creating a `Tester` needs no capability at
-all; the library cannot touch the filesystem, the network, the
-clock, or anything else. `capa --manifest` proves it (see
+all, and the library's functions declare and reach no capability
+other than `Stdio`; `finish()` aborts with `panic` when an
+assertion failed, which is how `capa test` detects the failure.
+`capa --manifest` records the surface (see
 [Audit claim](#audit-claim)).
 
 ## Quick start
@@ -231,9 +233,9 @@ Tester.finish:        declared=['Stdio'] reachable=['Stdio']
 render_list:          declared=[]        reachable=[]
 ```
 
-No function crosses `unsafe`, no function reaches any
-capability beyond the `Stdio` you hand it, and the
-constructor reaches none at all.
+No function crosses `unsafe`, no function declares or
+reaches a capability other than the `Stdio` you hand it, and
+the constructor declares none at all.
 
 ## Honest limitations (v0.1)
 
